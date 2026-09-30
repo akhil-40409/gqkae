@@ -1,4 +1,4 @@
-"""GRPO training loop for one H₄ geometry (GQKAE / QSCI)."""
+"""GRPO training loop: the generator writes circuits, the problem scores them."""
 
 from __future__ import annotations
 
@@ -13,81 +13,52 @@ import numpy as np
 import optax
 from tqdm import trange
 
+from gqkae.circuit import sample_counts
 from gqkae.grpo import grpo_loss, standardize_rewards, token_log_probs
-from gqkae.model import (
-    count_params,
-    init_transformer,
-    sample_sequences,
-    transformer_logits,
-)
-from gqkae.molecule import H4System
-from gqkae.operators import build_uccsd_pool
-from gqkae.qsci import build_full_cas_hamiltonian, evaluate_sequence
+from gqkae.model import count_params, init_transformer, sample_sequences, transformer_logits
+from gqkae.problem import Problem
 
-
-BOS_ID = 0  # identity token doubles as BOS context starter in the pool
+BOS_ID = 0  # pool[0] is the identity; it doubles as the BOS token
 
 
 @dataclass
 class TrainConfig:
-    """GRPO training knobs for one geometry.
-
-    Paper (H₄, arXiv:2605.04604 §V-A) used GPT-2-scale HQKANsformer, L=20,
-    M=10, 1e5 shots, 100 iters, 5 seeds, AdamW 5e-6 / 30 policy updates,
-    CUDA-Q. This demo keeps the same chemistry and loop, with much smaller
-    models and shot budgets (see ``gqkae.profiles``).
-    """
-
-    bond_length: float = 1.0
-    basis: str = "6-31g"
     n_iters: int = 40
     group_size: int = 8
-    seq_len: int = 20  # paper L=20 for H4
-    shots: int = 2048
-    d_max: int = 2000
+    seq_len: int = 20
+    shots: int = 256
     d_model: int = 32
     d_latent: int = 12
     d_ff: int = 128
     n_layers: int = 2
     n_heads: int = 4
     backbone: Literal["gqkae", "gqe"] = "gqkae"
-    lr: float = 5e-5
+    lr: float = 2e-3
     weight_decay: float = 0.01
     policy_updates: int = 10
     clip_eps: float = 0.2
     temperature: float = 1.0
     repetition_penalty: float = 1.2
     seed: int = 0
-    out_dir: str = "runs/h4"
-    # pool angle (fixed); π/2 is a common discrete GQE choice
-    op_angle: float = 0.5 * float(np.pi)
+    out_dir: str | None = None
 
 
 @dataclass
 class TrainResult:
-    best_energy: float
-    casci_energy: float
-    hf_energy: float
-    history: list[dict] = field(default_factory=list)
+    best_energy: float  # lowest energy of any bitstring measured during training
+    best_index: int  # its basis index (wire 0 = MSB)
+    best_score: float  # best circuit score (e.g. CVaR) seen
     best_tokens: list[int] = field(default_factory=list)
+    history: list[dict] = field(default_factory=list)
     n_params: int = 0
     vocab_size: int = 0
     backbone: str = "gqkae"
+    shots_used: int = 0
 
 
-def train_geometry(cfg: TrainConfig | None = None) -> TrainResult:
+def train(problem: Problem, cfg: TrainConfig | None = None) -> TrainResult:
     cfg = cfg or TrainConfig()
-    out = Path(cfg.out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    with open(out / "config.json", "w") as f:
-        json.dump(asdict(cfg), f, indent=2)
-
-    system = H4System(bond_length=cfg.bond_length, basis=cfg.basis)
-    pool = build_uccsd_pool(system, angle=cfg.op_angle, include_identity=True)
-    vocab_size = len(pool)
-    H_full, na, nb = build_full_cas_hamiltonian(system.hamiltonian)
-    casci = system.casci_energy()
-    hf = system.hf_energy
+    vocab_size = len(problem.pool)
 
     key = jax.random.PRNGKey(cfg.seed)
     key, k_init = jax.random.split(key)
@@ -106,13 +77,8 @@ def train_geometry(cfg: TrainConfig | None = None) -> TrainResult:
     optimizer = optax.adamw(cfg.lr, weight_decay=cfg.weight_decay)
     opt_state = optimizer.init(params)
 
-    best_energy = float("inf")
-    best_tokens: list[int] = []
-    history: list[dict] = []
-
     def loss_fn(p, tokens, old_lp, advantages):
-        logits = transformer_logits(tokens, p)
-        new_lp = token_log_probs(logits, tokens, temperature=cfg.temperature)
+        new_lp = token_log_probs(transformer_logits(tokens, p), tokens, temperature=cfg.temperature)
         return grpo_loss(new_lp, old_lp, advantages, clip_eps=cfg.clip_eps)
 
     @jax.jit
@@ -121,16 +87,16 @@ def train_geometry(cfg: TrainConfig | None = None) -> TrainResult:
 
     @jax.jit
     def update_step(p, opt_st, tokens, old_lp, advantages):
-        (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-            p, tokens, old_lp, advantages
-        )
+        (loss, _), grads = jax.value_and_grad(loss_fn, has_aux=True)(p, tokens, old_lp, advantages)
         updates, opt_st = optimizer.update(grads, opt_st, p)
-        p = optax.apply_updates(p, updates)
-        return p, opt_st, loss, metrics
+        return optax.apply_updates(p, updates), opt_st, loss
 
-    for it in trange(cfg.n_iters, desc=f"H4 {cfg.backbone} R={cfg.bond_length:.2f}"):
+    best_energy, best_index = float("inf"), -1
+    best_score, best_tokens = float("inf"), []
+    history: list[dict] = []
+
+    for it in trange(cfg.n_iters, desc=f"{cfg.backbone} n={problem.n_qubits}"):
         key, k_sample = jax.random.split(key)
-        # tokens include BOS=identity at position 0; generate seq_len operators
         tokens = sample_sequences(
             k_sample,
             params,
@@ -142,77 +108,49 @@ def train_geometry(cfg: TrainConfig | None = None) -> TrainResult:
         )
         tokens_np = np.asarray(tokens)
 
-        energies = []
+        scores = []
         for m in range(cfg.group_size):
-            # evaluate operator sequence after BOS
             seq = tokens_np[m, 1:].tolist()
-            res = evaluate_sequence(
-                system,
-                pool,
-                seq,
-                shots=cfg.shots,
-                d_max=cfg.d_max,
-                seed=cfg.seed + it * 1000 + m,
-                H_full=H_full,
-                na=na,
-                nb=nb,
-            )
-            energies.append(res.energy)
-            if res.energy < best_energy:
-                best_energy = res.energy
-                best_tokens = seq
+            counts = sample_counts(problem, seq, cfg.shots, seed=cfg.seed + it * 1000 + m)
+            s = problem.score(counts)
+            e, i = problem.best_sample(counts)
+            scores.append(s)
+            if s < best_score:
+                best_score, best_tokens = s, seq
+            if e < best_energy:
+                best_energy, best_index = e, i
 
-        energies_arr = jnp.asarray(energies, dtype=jnp.float32)
-        rewards = -energies_arr
-        advantages = standardize_rewards(rewards)
-
+        advantages = standardize_rewards(-jnp.asarray(scores, dtype=jnp.float32))
         old_lp = jax.lax.stop_gradient(old_log_probs(params, tokens))
-
-        last_loss = 0.0
+        loss = 0.0
         for _ in range(cfg.policy_updates):
-            params, opt_state, loss, _metrics = update_step(
-                params, opt_state, tokens, old_lp, advantages
-            )
-            last_loss = float(loss)
+            params, opt_state, loss = update_step(params, opt_state, tokens, old_lp, advantages)
 
-        row = {
-            "iter": it,
-            "mean_E": float(np.mean(energies)),
-            "min_E": float(np.min(energies)),
-            "best_so_far": best_energy,
-            "casci": casci,
-            "error_mHa": 1e3 * (best_energy - casci),
-            "loss": last_loss,
-        }
-        history.append(row)
+        history.append(
+            {
+                "iter": it,
+                "mean_score": float(np.mean(scores)),
+                "min_score": float(np.min(scores)),
+                "best_score": best_score,
+                "best_energy": best_energy,
+                "loss": float(loss),
+            }
+        )
 
     result = TrainResult(
         best_energy=best_energy,
-        casci_energy=casci,
-        hf_energy=hf,
-        history=history,
+        best_index=best_index,
+        best_score=best_score,
         best_tokens=best_tokens,
+        history=history,
         n_params=n_params,
         vocab_size=vocab_size,
         backbone=cfg.backbone,
+        shots_used=cfg.n_iters * cfg.group_size * cfg.shots,
     )
-    with open(out / "history.json", "w") as f:
-        json.dump(history, f, indent=2)
-    with open(out / "solution.json", "w") as f:
-        json.dump(
-            {
-                "bond_length": cfg.bond_length,
-                "best_energy": best_energy,
-                "casci": casci,
-                "hf": hf,
-                "error_Ha": best_energy - casci,
-                "error_mHa": 1e3 * (best_energy - casci),
-                "best_tokens": best_tokens,
-                "n_params": n_params,
-                "vocab_size": vocab_size,
-                "backbone": cfg.backbone,
-            },
-            f,
-            indent=2,
-        )
+    if cfg.out_dir:
+        out = Path(cfg.out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "config.json").write_text(json.dumps(asdict(cfg), indent=2))
+        (out / "result.json").write_text(json.dumps(asdict(result), indent=2))
     return result

@@ -1,12 +1,18 @@
-"""GQKAE: generative quantum-inspired Kolmogorov–Arnold eigensolver for H₄."""
+"""GQE / GQKAE: a transformer writes circuits, GRPO rewards the low-energy ones."""
 
-from gqkae.molecule import H4System, reference_energies
-from gqkae.train import TrainConfig, train_geometry
+from gqkae.ising import Ising, IsingProblem, load_qubo, maxcut, random_sk
+from gqkae.problem import Problem
+from gqkae.train import TrainConfig, TrainResult, train
 
 __all__ = [
-    "H4System",
-    "reference_energies",
+    "Ising",
+    "IsingProblem",
+    "Problem",
     "TrainConfig",
-    "train_geometry",
+    "TrainResult",
+    "load_qubo",
+    "maxcut",
+    "random_sk",
+    "train",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"
