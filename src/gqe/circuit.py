@@ -18,8 +18,8 @@ import numpy as np
 import pennylane as qml
 from catalyst import cond, for_loop, qjit
 
-from gqkae.gates import KINDS, LAYER_KINDS, Gate, apply_layer
-from gqkae.problem import Problem
+from gqe.gates import KINDS, LAYER_KINDS, Gate, apply_layer
+from gqe.problem import Problem
 
 PAD = -1  # indexes the trailing identity row of the lookup tables
 

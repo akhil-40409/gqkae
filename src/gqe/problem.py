@@ -11,7 +11,7 @@ from typing import Literal, Protocol
 
 import numpy as np
 
-from gqkae.gates import Gate
+from gqe.gates import Gate
 
 
 class Problem(Protocol):

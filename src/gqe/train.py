@@ -13,10 +13,10 @@ import numpy as np
 import optax
 from tqdm import trange
 
-from gqkae.circuit import sample_counts
-from gqkae.grpo import grpo_loss, standardize_rewards, token_log_probs
-from gqkae.model import count_params, init_transformer, sample_sequences, transformer_logits
-from gqkae.problem import Problem
+from gqe.circuit import sample_counts
+from gqe.grpo import grpo_loss, standardize_rewards, token_log_probs
+from gqe.model import count_params, init_transformer, sample_sequences, transformer_logits
+from gqe.problem import Problem
 
 BOS_ID = 0  # pool[0] is the identity; it doubles as the BOS token
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import argparse
 
-from gqkae.compare import METHODS, run_comparison
-from gqkae.ising import IsingProblem, bits_to_str, index_to_bits, load_qubo, random_sk
-from gqkae.profiles import PROFILES
-from gqkae.train import TrainConfig, train
+from gqe.compare import METHODS, run_comparison
+from gqe.ising import IsingProblem, bits_to_str, index_to_bits, load_qubo, random_sk
+from gqe.profiles import PROFILES
+from gqe.train import TrainConfig, train
 
 
 def main(argv: list[str] | None = None) -> None:

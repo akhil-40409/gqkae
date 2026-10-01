@@ -81,7 +81,7 @@ def get_profile(name: str) -> dict[str, Any]:
 
 
 def train_config(profile: dict[str, Any], **overrides):
-    from gqkae.train import TrainConfig
+    from gqe.train import TrainConfig
 
     fields = TrainConfig.__dataclass_fields__
     kwargs = {k: v for k, v in profile.items() if k in fields}

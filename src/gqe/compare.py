@@ -14,10 +14,10 @@ from typing import Any
 
 import numpy as np
 
-from gqkae.baselines import qaoa, random_search, simulated_annealing
-from gqkae.ising import IsingProblem, random_sk
-from gqkae.profiles import get_profile, train_config
-from gqkae.train import train
+from gqe.baselines import qaoa, random_search, simulated_annealing
+from gqe.ising import IsingProblem, random_sk
+from gqe.profiles import get_profile, train_config
+from gqe.train import train
 
 METHODS = ("random", "SA", "QAOA", "GQE", "GQKAE")
 TOL = 1e-9

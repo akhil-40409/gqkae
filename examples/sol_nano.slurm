@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J gqkae-sk-nano
+#SBATCH -J gqe-sk-nano
 #SBATCH -N 1
 #SBATCH -c 8
 #SBATCH --mem=32G
@@ -33,4 +33,4 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export MPLCONFIGDIR="${PWD}/.mplconfig"
 mkdir -p "$MPLCONFIGDIR" logs
 
-python -m gqkae.cli compare --profile nano --out-dir runs/nano
+python -m gqe.cli compare --profile nano --out-dir runs/nano

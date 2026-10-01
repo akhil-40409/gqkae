@@ -5,8 +5,8 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from gqkae.grpo import grpo_loss, standardize_rewards
-from gqkae.model import count_params, init_transformer, transformer_logits
+from gqe.grpo import grpo_loss, standardize_rewards
+from gqe.model import count_params, init_transformer, transformer_logits
 
 
 def test_gqe_and_gqkae_logits_shapes():

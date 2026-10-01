@@ -8,11 +8,11 @@ import numpy as np
 import pennylane as qml
 import pytest
 
-from gqkae.baselines import qaoa, random_search, simulated_annealing
-from gqkae.circuit import sample_counts, statevector_probs
-from gqkae.gates import apply_gate
-from gqkae.ising import Ising, IsingProblem, cvar, index_to_bits, load_qubo, maxcut, random_sk
-from gqkae.train import TrainConfig, train
+from gqe.baselines import qaoa, random_search, simulated_annealing
+from gqe.circuit import sample_counts, statevector_probs
+from gqe.gates import apply_gate
+from gqe.ising import Ising, IsingProblem, cvar, index_to_bits, load_qubo, maxcut, random_sk
+from gqe.train import TrainConfig, train
 
 
 def test_qubo_ising_roundtrip():

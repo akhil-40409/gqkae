@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gqkae"
+name = "gqe"
 version = "0.4.0"
 description = "GQE/GQKAE generative circuit search for Ising and QUBO problems (PennyLane + JAX + Catalyst)"
 readme = "README.md"
@@ -26,7 +26,7 @@ dependencies = [
 dev = ["pytest>=8.0", "jupyter>=1.0", "ipykernel>=6.0"]
 
 [project.scripts]
-gqkae = "gqkae.cli:main"
+gqe = "gqe.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

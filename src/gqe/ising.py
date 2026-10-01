@@ -21,7 +21,7 @@ from typing import Literal
 import numpy as np
 import pennylane as qml
 
-from gqkae.gates import IDENTITY, Gate
+from gqe.gates import IDENTITY, Gate
 
 DEFAULT_GAMMAS = (0.1, 0.2, 0.4, 0.8)
 DEFAULT_BETAS = (-0.4, -0.2, -0.1, 0.1, 0.2, 0.4)

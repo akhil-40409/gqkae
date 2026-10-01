@@ -9,7 +9,7 @@ import pennylane as qml
 from catalyst import qjit
 from scipy.optimize import minimize
 
-from gqkae.ising import Ising, IsingProblem
+from gqe.ising import Ising, IsingProblem
 
 
 def random_search(problem: IsingProblem, n_samples: int, seed: int = 0) -> float:
