@@ -13,16 +13,16 @@ import numpy as np
 import optax
 from tqdm import trange
 
-from gqkae.grpo import grpo_loss, standardize_rewards, token_log_probs
-from gqkae.model import (
+from gqe.grpo import grpo_loss, standardize_rewards, token_log_probs
+from gqe.model import (
     count_params,
     init_transformer,
     sample_sequences,
     transformer_logits,
 )
-from gqkae.molecule import H4System
-from gqkae.operators import build_uccsd_pool
-from gqkae.qsci import build_full_cas_hamiltonian, evaluate_sequence
+from gqe.molecule import H4System
+from gqe.operators import build_uccsd_pool
+from gqe.qsci import build_full_cas_hamiltonian, evaluate_sequence
 
 
 BOS_ID = 0  # identity token doubles as BOS context starter in the pool
@@ -35,7 +35,7 @@ class TrainConfig:
     Paper (H₄, arXiv:2605.04604 §V-A) used GPT-2-scale HQKANsformer, L=20,
     M=10, 1e5 shots, 100 iters, 5 seeds, AdamW 5e-6 / 30 policy updates,
     CUDA-Q. This demo keeps the same chemistry and loop, with much smaller
-    models and shot budgets (see ``gqkae.profiles``).
+    models and shot budgets (see ``gqe.profiles``).
     """
 
     bond_length: float = 1.0

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 import pennylane as qml
 
-from gqkae.molecule import H4System
+from gqe.molecule import H4System
 
 
 @dataclass(frozen=True)

@@ -7,10 +7,10 @@ from pathlib import Path
 
 import numpy as np
 
-from gqkae.compare import run_comparison
-from gqkae.molecule import reference_energies
-from gqkae.profiles import PROFILES
-from gqkae.train import TrainConfig, train_geometry
+from gqe.compare import run_comparison
+from gqe.molecule import reference_energies
+from gqe.profiles import PROFILES
+from gqe.train import TrainConfig, train_geometry
 
 
 def main(argv: list[str] | None = None) -> None:

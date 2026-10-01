@@ -18,9 +18,9 @@ from dataclasses import dataclass
 import numpy as np
 from pyscf.fci import cistring, direct_spin1
 
-from gqkae.circuit import sample_circuit
-from gqkae.molecule import CASHamiltonian, H4System
-from gqkae.operators import ExcitationOp
+from gqe.circuit import sample_circuit
+from gqe.molecule import CASHamiltonian, H4System
+from gqe.operators import ExcitationOp
 
 
 @dataclass

@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gqkae"
+name = "gqe"
 version = "0.3.0"
 description = "GQKAE/GQE for H4: generative eigensolvers + UCCSD-VQE (PennyLane + JAX)"
 readme = "README.md"
@@ -27,7 +27,7 @@ dependencies = [
 dev = ["pytest>=8.0", "jupyter>=1.0", "ipykernel>=6.0"]
 
 [project.scripts]
-gqkae-h4 = "gqkae.cli:main"
+gqe-h4 = "gqe.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

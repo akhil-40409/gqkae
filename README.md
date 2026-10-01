@@ -1,42 +1,67 @@
-# GQKAE on H₄
+# gqe (H₄ branch)
 
 A small, readable reimplementation of the H₄ experiment from [Generative Quantum-inspired Kolmogorov–Arnold Eigensolver](https://arxiv.org/abs/2605.04604) (Lin et al.).
 
-The one-sentence version: **train a tiny GPT whose vocabulary is quantum gates, and reward it when the circuit it writes has low energy.** GQKAE is that, with the MLP inside each transformer block swapped for a slimmer KAN-style block.
+Here's the whole idea in one sentence: **train a tiny GPT whose vocabulary is quantum gates, and reward it when the circuit it writes has low energy.** That's it. GQKAE is the same thing with the MLP inside each transformer block swapped for a slimmer KAN-style block. GQE is the plain-MLP version.
 
-We only do H₄ (8 qubits). That's on purpose: at 8 qubits the exact answer costs microseconds, so every number the model produces can be checked.
+We only do H₄ (8 qubits), and that's on purpose. At 8 qubits the exact answer costs microseconds, so every number the model produces can be checked against ground truth. I'd much rather have one molecule I fully trust than six I don't. (The QUBO / Ising version of this code lives on the `qubo-ising` branch.)
 
-## What's being compared
+## quick start
 
-| Method | What it does |
+```bash
+python3.13 -m venv .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+pytest -q
+```
+
+Train one model at one geometry:
+
+```bash
+gqe-h4 train --R 1.0 --backbone gqkae
+gqe-h4 train --R 1.0 --backbone gqe
+```
+
+Run everything across bond lengths:
+
+```bash
+gqe-h4 compare --profile smoke     # ~1 min, just checks the plumbing
+gqe-h4 compare --profile laptop    # a few minutes
+gqe-h4 compare --profile nano      # ~15 min on a laptop, 7 R points × 3 seeds
+```
+
+On ASU Sol: `mkdir -p logs && sbatch examples/sol_h4_nano.slurm`. Outputs land in `runs/<profile>/`: `pes.json`, `fig4a_pes.png`, `fig5a_error.png`, `summary.md`.
+
+If you've never touched chemistry, start with the notebook: [`notebooks/gqe_h4_demo.ipynb`](notebooks/gqe_h4_demo.ipynb). It walks through all of it assuming you know Hamiltonians but not molecules.
+
+## what's being compared
+
+| method | what it does |
 |---|---|
 | HF | Best single bitstring (mean-field). Breaks when bonds stretch. |
 | CCSD | Classical correction on top of HF. Great near equilibrium. |
 | CASCI | Diagonalize the 36×36 Hamiltonian exactly. **This is the label.** |
 | VQE | Fixed UCCSD circuit, tune 26 angles with COBYLA. |
-| GQE | Transformer picks a 20-gate sequence; trained with GRPO on a QSCI reward. |
+| GQE | Transformer picks a 20-gate sequence, trained with GRPO on a QSCI reward. |
 | GQKAE | GQE, but the feed-forward MLP is replaced by HQKAN (DARUAN activations). |
 
 "Chemical accuracy" means landing within 1.6 mHa of CASCI.
 
-## How one training step works
+## one training step
 
 1. The transformer samples a group of 20-token sequences. Each token is a gate from the UCCSD pool (27 choices, angles frozen at π/2).
-2. Each sequence is a circuit, applied to the HF bitstring `11110000`.
-3. Measure the circuit N times. Keep the valid bitstrings (2 spin-up + 2 spin-down electrons).
-4. **QSCI**: diagonalize H restricted to those bitstrings. The lowest eigenvalue is the score; reward = −energy.
-5. **GRPO**: rank circuits against their group mates, then take a PPO-style clipped step on the token log-probs.
+2. Each sequence becomes a circuit, applied to the HF bitstring `11110000`.
+3. Measure the circuit N times and keep the valid bitstrings (2 spin-up + 2 spin-down electrons).
+4. **QSCI**: diagonalize H restricted to those bitstrings. The lowest eigenvalue is the score, and reward = −energy. So the circuit's job is just to *propose* the right bitstrings; linear algebra does the rest.
+5. **GRPO**: rank circuits against their group mates, then take a PPO-style clipped step on the token log-probs. No critic.
 
-The notebook walks through all of it, chemistry included, assuming you know Hamiltonians but not molecules: [`notebooks/gqkae_h4_demo.ipynb`](notebooks/gqkae_h4_demo.ipynb).
+## why it's fast
 
-## Why it's fast
+Circuits run on `lightning.qubit`, compiled with [Catalyst](https://docs.pennylane.ai/projects/catalyst/en/stable/) `@qjit`. The annoying part is that the model writes a different circuit every time, and you really don't want to recompile per circuit. The trick is to make the token sequence an *input* to one compiled program: at each step every gate gets applied, with its angle zeroed unless it's the chosen token. A rotation by zero does nothing, so the circuit is exact. Compile once, then a few ms per circuit. Transformer sampling runs inside a single `jax.jit`. Together these took one training run from ~35 s to ~3 s.
 
-Circuits run on `lightning.qubit` and are compiled with [Catalyst](https://docs.pennylane.ai/projects/catalyst/en/stable/) `@qjit`. The model writes a different circuit every time, so the token sequence is an *input* to one compiled program: at each step every gate is applied, with its angle zeroed unless it's the chosen token. Compile once, then a few ms per circuit. Transformer sampling runs inside a single `jax.jit`. One training run went from ~35 s to ~3 s.
-
-## Layout
+## files
 
 ```
-src/gqkae/
+src/gqe/
   molecule.py    H₄ geometry, PySCF integrals, HF/CCSD/CASCI, qubit Hamiltonian
   operators.py   the UCCSD gate pool (the "vocabulary")
   circuit.py     Catalyst-compiled lightning.qubit circuits
@@ -50,33 +75,14 @@ src/gqkae/
 examples/
   run_h4_compare.py
   sol_h4_nano.slurm
+notebooks/
+  gqe_h4_demo.ipynb
 tests/test_h4.py
 ```
 
-## Run it
+## tests
 
-```bash
-python3.13 -m venv .venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-pytest -q
-```
-
-```bash
-# one geometry, one model
-gqkae-h4 train --R 1.0 --backbone gqkae
-gqkae-h4 train --R 1.0 --backbone gqe
-
-# everything, across bond lengths
-gqkae-h4 compare --profile smoke     # ~1 min, just checks the plumbing
-gqkae-h4 compare --profile laptop    # a few minutes
-gqkae-h4 compare --profile nano      # ~15 min on a laptop, 7 R points × 3 seeds
-```
-
-On ASU Sol: `mkdir -p logs && sbatch examples/sol_h4_nano.slurm`. Outputs land in `runs/<profile>/`: `pes.json`, `fig4a_pes.png`, `fig5a_error.png`, `summary.md`.
-
-## How we know it's right
-
-Each of these is a test in `tests/test_h4.py`:
+If you can't check it, you can't trust it. Each of these is a test in `tests/test_h4.py`:
 
 - empty circuit → QSCI returns exactly HF
 - hand QSCI all 36 valid bitstrings → exactly CASCI
@@ -84,9 +90,9 @@ Each of these is a test in `tests/test_h4.py`:
 - the qubit Hamiltonian's expectation on `11110000` equals the HF energy
 - VQE at θ = 0 is HF, and it never goes below CASCI
 
-## Paper vs this repo
+## paper vs this repo
 
-| | Paper | Laptop | Nano |
+| | paper | laptop | nano |
 |---|---|---|---|
 | System | H₄ (4e,4o), 6-31G, 8 qubits | same | same |
 | Sequence length | 20 | 20 | 20 |
@@ -94,7 +100,9 @@ Each of these is a test in `tests/test_h4.py`:
 | Model | GPT-2 scale, ~14M (GQKAE) vs ~55M (GQE) | 16k vs 27k | 84k vs 203k |
 | Simulator | CUDA-Q | Catalyst + lightning.qubit | same |
 
-## Results (nano, 7 bond lengths × 3 seeds, ~13 min on a laptop)
+## results
+
+Nano profile, 7 bond lengths × 3 seeds, ~13 min on a laptop. Each cell is |E − E_CASCI| in mHa; 0 means equal to machine precision.
 
 | R (Å) | HF | CCSD | VQE | GQE | GQKAE |
 |---:|---:|---:|---:|---:|---:|
@@ -103,8 +111,12 @@ Each of these is a test in `tests/test_h4.py`:
 | 1.73 | 119.8 | 1.24 | 1.03 | 0 | 0 |
 | 2.20 | 203.8 | 9.50 | 2.49 | 0 | 0 |
 
-|E − E_CASCI| in mHa; 0 means equal to machine precision. HF falls apart as the chain stretches. CCSD and one-layer UCCSD-VQE leave chemical accuracy past ~1.8 Å. GQE and GQKAE nail it everywhere.
+HF falls apart as the chain stretches. CCSD and one-layer UCCSD-VQE leave chemical accuracy past ~1.8 Å. GQE and GQKAE nail it everywhere.
 
-**Read that last column carefully.** With 8192 shots, 30–40% of *random* 20-gate circuits already reach chemical accuracy on H₄: there are only 36 valid bitstrings, and the shots find most of them. Training looks at ~560 circuits and keeps the best, so it basically can't miss. Every seed hits 1.6 mHa at iteration 0, same as the paper's "nearly flat" H₄ curve. The policy does learn (the average circuit goes from ~18 to ~12 mHa error), but H₄ is a correctness check, not a benchmark, and it can't tell GQE from GQKAE. The paper's interesting cases are N₂ and LiH, which are out of scope here.
+**Now, please don't get excited about that last column.** With 8192 shots, 30–40% of *random* 20-gate circuits already reach chemical accuracy on H₄. There are only 36 valid bitstrings and the shots find most of them. Training looks at ~560 circuits and keeps the best, so it basically can't miss. Every seed hits 1.6 mHa at iteration 0, which matches the paper's "nearly flat" H₄ curve. The policy does learn something (the average circuit goes from ~18 to ~12 mHa error), but H₄ is a correctness check, not a benchmark, and it can't tell GQE from GQKAE. The paper's interesting cases are N₂ and LiH, which are out of scope here.
 
 Things we don't claim: the paper's wall-clock numbers, its exact parameter counts, or anything about the other five molecules.
+
+## license
+
+Apache-2.0

@@ -9,18 +9,18 @@ import jax.numpy as jnp
 import numpy as np
 import pennylane as qml
 
-from gqkae.grpo import grpo_loss, standardize_rewards
-from gqkae.model import count_params, init_transformer, transformer_logits
-from gqkae.molecule import H4System, qubit_hamiltonian, reference_energies
-from gqkae.circuit import statevector_probs
-from gqkae.operators import apply_operator, build_uccsd_pool, hf_occupation
-from gqkae.qsci import (
+from gqe.grpo import grpo_loss, standardize_rewards
+from gqe.model import count_params, init_transformer, transformer_logits
+from gqe.molecule import H4System, qubit_hamiltonian, reference_energies
+from gqe.circuit import statevector_probs
+from gqe.operators import apply_operator, build_uccsd_pool, hf_occupation
+from gqe.qsci import (
     bitstring_to_ab,
     build_full_cas_hamiltonian,
     evaluate_sequence,
     qsci_energy_from_counts,
 )
-from gqkae.vqe import run_vqe
+from gqe.vqe import run_vqe
 
 
 def test_h4_casci_below_hf():

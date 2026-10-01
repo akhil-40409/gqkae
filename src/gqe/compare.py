@@ -9,10 +9,10 @@ from typing import Any
 
 import numpy as np
 
-from gqkae.molecule import H4System, reference_energies
-from gqkae.profiles import get_profile
-from gqkae.train import TrainConfig, train_geometry
-from gqkae.vqe import run_vqe
+from gqe.molecule import H4System, reference_energies
+from gqe.profiles import get_profile
+from gqe.train import TrainConfig, train_geometry
+from gqe.vqe import run_vqe
 
 CHEMICAL_ACCURACY_MHA = 1.6
 

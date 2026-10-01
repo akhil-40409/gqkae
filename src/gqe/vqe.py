@@ -13,8 +13,8 @@ import pennylane as qml
 from catalyst import qjit
 from scipy.optimize import minimize
 
-from gqkae.molecule import H4System, qubit_hamiltonian
-from gqkae.operators import hf_occupation
+from gqe.molecule import H4System, qubit_hamiltonian
+from gqe.operators import hf_occupation
 
 
 @dataclass

@@ -16,8 +16,8 @@ import numpy as np
 import pennylane as qml
 from catalyst import for_loop, qjit
 
-from gqkae.molecule import H4System
-from gqkae.operators import ExcitationOp, hf_occupation
+from gqe.molecule import H4System
+from gqe.operators import ExcitationOp, hf_occupation
 
 PAD = -1  # matches no pool index → the step does nothing
 
